@@ -1,17 +1,36 @@
-from flask import jsonify
+from flask import jsonify, request
 import os
 from dotenv import load_dotenv
-from flask import jsonify, request
-from api.db import get_db_connection
+import google.generativeai as genai
 
 load_dotenv()
 
-# TODO: Implement this endpoint
+# Configure Gemini
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+
 def chatbot():
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute('SELECT NOW()')
-    result = cur.fetchone()
-    cur.close()
-    conn.close()
-    return jsonify({'result': str(result[0])})
+    user_message = request.args.get("message", "").strip()
+    if not user_message:
+        return jsonify({"error": "No message provided"}), 400
+
+    try:
+        # Use Gemini 1.5 Flash (text-only model)
+        model = genai.GenerativeModel("gemini-1.5-flash")
+
+        response = model.generate_content(
+            f"You are SortSmart, a recycling assistant who helps people decide how to properly dispose of waste items. "
+            f"Give short, friendly, and clear recycling tips.\n\nUser: {user_message}"
+        )
+
+        # Return the response text
+        if hasattr(response, "text"):
+            return jsonify({"response": response.text})
+        else:
+            return jsonify({"response": "No response received from Gemini."})
+
+    except Exception as e:
+        import traceback
+        print("----- ERROR OCCURRED -----")
+        traceback.print_exc()
+        print("---------------------------")
+        return jsonify({"error": str(e)}), 500
